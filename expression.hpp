@@ -8,7 +8,6 @@
 #include <vector>
 
 #include "rational.hpp"
-#include "overloaded.hpp"
 #include "single_ref_view.hpp"
 
 enum class Kind : int {
@@ -124,11 +123,17 @@ struct Undefined : public ExpressionBase{
 
 template<class T, class U>
 auto get_as(const std::unique_ptr<U>& ptr){
+    if(typeid(*ptr.get()) != typeid(T)){
+        throw std::runtime_error(fmt::format("Invalid Pointer conversion from {} to {}", typeid(*ptr.get()).name(), typeid(T).name()));
+    }
     return reinterpret_cast<const T*>(ptr.get());
 }
 
 template<class T, class U>
 auto get_as(std::unique_ptr<U>& ptr){
+    if(typeid(*ptr.get()) != typeid(T)){
+        throw std::runtime_error(fmt::format("Invalid Pointer conversion from {} to {}", typeid(*ptr.get()).name(), typeid(T).name()));
+    }
     return reinterpret_cast<T*>(ptr.get());
 }
 
@@ -228,6 +233,9 @@ std::string expr_to_str(const ExprPtr& e) {
         return ret;
     } break;
     case Kind::Undefined: return "<Undefined>";
+    default: {
+        throw std::runtime_error("Unknown term kind");
+    }
     }
 }
 
@@ -614,21 +622,22 @@ ExprPtr simplify_subexpression(const SimplificationContext& sc, ExprPtr x){
         auto ptr = get_as<Power>(x);
         ptr->base = automatic_simplify(sc, std::move(ptr->base));
         ptr->exponent = automatic_simplify(sc, std::move(ptr->exponent));
-    }
+    } break;
     case Kind::ProdOp: {
         auto ptr = get_as<Product>(x);
         for(auto& c : ptr->children){
             c = automatic_simplify(sc, std::move(x));
         }
         return x;
-    }
+    } break;
     case Kind::SumOp: {
         auto ptr = get_as<Sum>(x);
         for(auto& c : ptr->children){
             c = automatic_simplify(sc, std::move(x));
         }
         return x;
-    }
+    } break;
+    default: {} break;
     }
     return x;
 }
@@ -644,15 +653,10 @@ constexpr auto match_type = [](const ExprPtr& ptr){
     return ptr->kind() == k;
 };
 
-constexpr auto match_any = [](const ExprPtr&){ return true; }
+constexpr auto match_any = [](const ExprPtr&){ return true; };
 
 constexpr auto simplification_rules = std::array{
     SimplificationRule{ match_any, automatic_simplify },
-    SimplificationRule{ match_type<Power>, automatic_simplify_power },
-    SimplificationRule{ match_type<Product>, automatic_simplify_product },
-    SimplificationRule{ match_type<Power>, automatic_simplify_power },
-    SimplificationRule{ match_type<Power>, automatic_simplify_power },
-
 };
 
 
