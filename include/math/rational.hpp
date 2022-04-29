@@ -1,6 +1,7 @@
 #pragma once
 
 #include <concepts>
+#include <string>
 #include <fmt/format.h>
 
 #include "math_functions.hpp"
@@ -13,6 +14,13 @@ public:
         : m_num{std::move(num)}, m_denom{std::move(denom)}
     {
         if(not is_coprime) simplify_fraction();
+    }
+
+    template<class U> requires std::constructible_from<T, U>
+    constexpr explicit FieldOfFractions(U num, U denom = U{1})
+        : m_num{std::move(num)}, m_denom{std::move(denom)}
+    {
+        simplify_fraction();
     }
 
     constexpr auto num() const { return m_num; }
@@ -70,9 +78,30 @@ public:
         return lhs.num() * rhs.denom() <=> rhs.num() * lhs.denom();
     }
 
+    template<class U>
+    friend constexpr std::strong_ordering operator<=>(const FieldOfFractions& lhs, const U& rhs) {
+        return lhs.num() <=> rhs * lhs.denom();
+    }
+
+    template<class U>
+    friend constexpr std::strong_ordering operator<=>(const U& lhs, const FieldOfFractions& rhs) {
+        return lhs * rhs.denom() <=> rhs.num();
+    }
+
     friend constexpr bool operator==(const FieldOfFractions& lhs, const FieldOfFractions& rhs) {
         return (lhs <=> rhs) == 0;
     }
+
+    template<class U>
+    friend constexpr bool operator==(const FieldOfFractions& lhs, const U& rhs) {
+        return (lhs <=> rhs) == 0;
+    }
+
+    template<class U>
+    friend constexpr bool operator==(const U& lhs, const FieldOfFractions& rhs) {
+        return (lhs <=> rhs) == 0;
+    }
+
 private:
     void simplify_fraction(){
         // Simplify the fraction
@@ -135,6 +164,20 @@ struct math::impl::pow<FieldOfFractions<T>, FieldOfFractions<T>>{
             // Try to find an exact root of base, maybe?
             throw std::runtime_error("Invalid arguments to pow.");
         }    
+    }
+};
+
+template<class T>
+struct math::impl::pow<FieldOfFractions<T>, T>{
+    static auto func(const FieldOfFractions<T>& base, const T& exponent) {
+        if(exponent < 0) return FieldOfFractions<T>(
+            math::pow(base.denom(), -exponent),
+            math::pow(base.num(), -exponent)
+        );
+        else return FieldOfFractions<T>(
+            math::pow(base.num(), exponent),
+            math::pow(base.denom(), exponent)
+        );
     }
 };
 
